@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt House — AI Film Production Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: #161616;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --text-muted: #555555;
+            --accent: #c8a44e;
+            --accent-dim: rgba(200, 164, 78, 0.15);
+            --border: #222222;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== CURSOR GLOW ===== */
+        .cursor-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            background: radial-gradient(circle, rgba(200,164,78,0.04) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            transition: opacity 0.3s;
+        }
+
+        /* ===== NAV ===== */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(20px);
+            background: rgba(10,10,10,0.7);
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        nav.scrolled {
+            border-bottom-color: var(--border);
+            background: rgba(10,10,10,0.92);
+        }
+
+        .nav-logo {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .nav-logo span {
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 36px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-cta {
+            padding: 10px 24px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-cta:hover {
+            background: #dbb85e;
+            transform: translateY(-1px);
+        }
+
+        /* ===== HERO ===== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 120px 48px 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1px;
+            height: 120px;
+            background: linear-gradient(to bottom, transparent, var(--accent));
+        }
+
+        .hero-label {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 32px;
+            opacity: 0;
+            animation: fadeUp 1s 0.3s forwards;
+        }
+
+        .hero h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(48px, 8vw, 120px);
+            font-weight: 700;
+            line-height: 1.05;
+            margin-bottom: 32px;
+            opacity: 0;
+            animation: fadeUp 1s 0.5s forwards;
+        }
+
+        .hero h1 em {
+            font-style: italic;
+            color: var(--accent);
+        }
+
+        .hero-sub {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 520px;
+            line-height: 1.7;
+            font-weight: 300;
+            margin-bottom: 48px;
+            opacity: 0;
+            animation: fadeUp 1s 0.7s forwards;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            opacity: 0;
+            animation: fadeUp 1s 0.9s forwards;
+        }
+
+        .btn-primary {
+            padding: 16px 40px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .btn-primary:hover {
+            background: #dbb85e;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(200,164,78,0.2);
+        }
+
+        .btn-outline {
+            padding: 16px 40px;
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .btn-outline:hover {
+            border-color: var(--text-secondary);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .hero-scroll {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            animation: fadeUp 1s 1.2s forwards;
+        }
+
+        .hero-scroll span {
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .scroll-line {
+            width: 1px;
+            height: 40px;
+            background: linear-gradient(to bottom, var(--accent), transparent);
+            animation: scrollPulse 2s infinite;
+        }
+
+        /* ===== REEL / VIDEO SECTION ===== */
+        .reel-section {
+            padding: 80px 48px 120px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .reel-container {
+            width: 100%;
+            max-width: 1100px;
+            aspect-ratio: 16 / 9;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .reel-container:hover {
+            border-color: var(--accent);
+        }
+
+        .reel-container:hover .play-btn {
+            transform: scale(1.1);
+            border-color: var(--accent);
+        }
+
+        .play-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            z-index: 2;
+        }
+
+        .play-btn::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 12px 0 12px 22px;
+            border-color: transparent transparent transparent var(--text-primary);
+            margin-left: 4px;
+        }
+
+        .reel-label {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* ===== SECTION STYLES ===== */
+        section {
+            padding: 120px 48px;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(32px, 4vw, 56px);
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .section-title em {
+            font-style: italic;
+            color: var(--accent);
+        }
+
+        /* ===== SERVICES ===== */
+        .services {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .service-card {
+            background: var(--bg-card);
+            padding: 48px 40px;
+            transition: all 0.4s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.4s;
+        }
+
+        .service-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .service-card:hover {
+            background: #1a1a1a;
+        }
+
+        .service-number {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--border);
+            margin-bottom: 24px;
+            font-family: 'Playfair Display', serif;
+        }
+
+        .service-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+
+        .service-card p {
+            font-size: 14px;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        /* ===== PORTFOLIO ===== */
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .portfolio-item {
+            aspect-ratio: 16 / 10;
+            background: var(--bg-card);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-end;
+            padding: 32px;
+            border: 1px solid var(--border);
+            transition: border-color 0.3s;
+        }
+
+        .portfolio-item:hover {
+            border-color: var(--accent);
+        }
+
+        .portfolio-item:hover .portfolio-overlay {
+            opacity: 1;
+        }
+
+        .portfolio-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(10,10,10,0.9) 0%, transparent 60%);
+            opacity: 0.6;
+            transition: opacity 0.4s;
+        }
+
+        .portfolio-info {
+            position: relative;
+            z-index: 2;
+        }
+
+        .portfolio-tag {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .portfolio-info h3 {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .portfolio-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* ===== STATS ===== */
+        .stats {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 48px;
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 56px;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 12px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* ===== PROCESS ===== */
+        .process-steps {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .process-step {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 40px;
+            padding: 40px 0;
+            border-bottom: 1px solid var(--border);
+            align-items: start;
+        }
+
+        .step-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .step-content h3 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .step-content p {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        /* ===== ABOUT ===== */
+        .about-content {
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .about-content p {
+            font-size: 18px;
+            line-height: 2;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        .about-content p + p {
+            margin-top: 24px;
+        }
+
+        .about-content strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* ===== CTA SECTION ===== */
+        .cta-section {
+            text-align: center;
+            padding: 160px 48px;
+            position: relative;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+            pointer-events: none;
+        }
+
+        .cta-section h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(36px, 5vw, 64px);
+            font-weight: 700;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .cta-section p {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            font-weight: 300;
+            position: relative;
+        }
+
+        /* ===== FOOTER ===== */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 60px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .footer-logo {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .footer-logo span {
+            color: var(--accent);
+        }
+
+        .footer-copy {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .footer-socials {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-socials a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: color 0.3s;
+        }
+
+        .footer-socials a:hover {
+            color: var(--accent);
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scrollPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ===== MOBILE MENU ===== */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 4px;
+        }
+
+        .menu-toggle span {
+            display: block;
+            width: 24px;
+            height: 1.5px;
+            background: var(--text-primary);
+            transition: all 0.3s;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                padding: 20px 24px;
+            }
+
+            .menu-toggle {
+                display: flex;
+            }
+
+            .nav-links, .nav-cta {
+                display: none;
+            }
+
+            section {
+                padding: 80px 24px;
+            }
+
+            .hero {
+                padding: 120px 24px 80px;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .btn-primary, .btn-outline {
+                text-align: center;
+            }
+
+            .reel-section {
+                padding: 40px 24px 80px;
+            }
+
+            .portfolio-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 32px;
+            }
+
+            .process-step {
+                grid-template-columns: 50px 1fr;
+                gap: 24px;
+            }
+
+            footer {
+                flex-direction: column;
+                gap: 32px;
+                text-align: center;
+                padding: 40px 24px;
+            }
+
+            .cta-section {
+                padding: 100px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cursor Glow -->
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <a href="#" class="nav-logo">Prompt<span>House</span></a>
+        <ul class="nav-links">
+            <li><a href="#services">Services</a></li>
+            <li><a href="#work">Work</a></li>
+            <li><a href="#process">Process</a></li>
+            <li><a href="#about">About</a></li>
+        </ul>
+        <a href="#contact" class="nav-cta">Get in Touch</a>
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+        </button>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <span class="hero-label">AI Film Production Studio</span>
+        <h1>We Don't Film.<br>We <em>Prompt.</em></h1>
+        <p class="hero-sub">
+            Prompt House is a next-generation production studio crafting cinematic films,
+            music videos, and commercials — powered entirely by artificial intelligence.
+        </p>
+        <div class="hero-buttons">
+            <a href="#work" class="btn-primary">View Our Work</a>
+            <a href="#contact" class="btn-outline">Start a Project</a>
+        </div>
+        <div class="hero-scroll">
+            <span>Scroll</span>
+            <div class="scroll-line"></div>
+        </div>
+    </section>
+
+    <!-- Showreel -->
+    <div class="reel-section">
+        <div class="reel-container reveal">
+            <div class="play-btn"></div>
+            <span class="reel-label">Showreel 2026</span>
+        </div>
+    </div>
+
+    <!-- Services -->
+    <section class="services" id="services">
+        <div class="section-header reveal">
+            <span class="section-label">What We Do</span>
+            <h2 class="section-title">Built for the <em>Future</em> of Film</h2>
+        </div>
+        <div class="services-grid">
+            <div class="service-card reveal">
+                <div class="service-number">01</div>
+                <h3>AI Films & Shorts</h3>
+                <p>Narrative-driven short films and cinematic pieces crafted with cutting-edge generative AI. From concept to final cut, every frame is intentional.</p>
+            </div>
+            <div class="service-card reveal">
+                <div class="service-number">02</div>
+                <h3>Music Videos</h3>
+                <p>Visually striking music videos that push creative boundaries. We transform sound into surreal, unforgettable visual experiences.</p>
+            </div>
+            <div class="service-card reveal">
+                <div class="service-number">03</div>
+                <h3>Commercials & Brands</h3>
+                <p>High-impact brand content and commercials produced at a fraction of traditional cost — without compromising on cinematic quality.</p>
+            </div>
+            <div class="service-card reveal">
+                <div class="service-number">04</div>
+                <h3>AI Visual Effects</h3>
+                <p>Next-gen VFX for independent filmmakers and studios. We integrate AI-generated environments, characters, and effects into live-action footage.</p>
+            </div>
+            <div class="service-card reveal">
+                <div class="service-number">05</div>
+                <h3>Concept & Storyboard</h3>
+                <p>From script to AI-generated storyboards and animatics. See your vision before a single frame is rendered.</p>
+            </div>
+            <div class="service-card reveal">
+                <div class="service-number">06</div>
+                <h3>Creative Direction</h3>
+                <p>Full creative strategy for artists, brands, and labels looking to lead the AI content revolution. We define the vision, then execute it.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+        <div class="stats-grid reveal">
+            <div>
+                <div class="stat-number">—</div>
+                <div class="stat-label">Projects</div>
+            </div>
+            <div>
+                <div class="stat-number">—</div>
+                <div class="stat-label">Views</div>
+            </div>
+            <div>
+                <div class="stat-number">—</div>
+                <div class="stat-label">Clients</div>
+            </div>
+            <div>
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">AI Never Sleeps</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Portfolio -->
+    <section id="work">
+        <div class="section-header reveal">
+            <span class="section-label">Selected Work</span>
+            <h2 class="section-title">Stories <em>Prompted</em> into Life</h2>
+        </div>
+        <div class="portfolio-grid">
+            <div class="portfolio-item reveal">
+                <span class="portfolio-placeholder">Coming Soon</span>
+                <div class="portfolio-overlay"></div>
+                <div class="portfolio-info">
+                    <span class="portfolio-tag">Short Film</span>
+                    <h3>Project One</h3>
+                </div>
+            </div>
+            <div class="portfolio-item reveal">
+                <span class="portfolio-placeholder">Coming Soon</span>
+                <div class="portfolio-overlay"></div>
+                <div class="portfolio-info">
+                    <span class="portfolio-tag">Music Video</span>
+                    <h3>Project Two</h3>
+                </div>
+            </div>
+            <div class="portfolio-item reveal">
+                <span class="portfolio-placeholder">Coming Soon</span>
+                <div class="portfolio-overlay"></div>
+                <div class="portfolio-info">
+                    <span class="portfolio-tag">Commercial</span>
+                    <h3>Project Three</h3>
+                </div>
+            </div>
+            <div class="portfolio-item reveal">
+                <span class="portfolio-placeholder">Coming Soon</span>
+                <div class="portfolio-overlay"></div>
+                <div class="portfolio-info">
+                    <span class="portfolio-tag">AI VFX</span>
+                    <h3>Project Four</h3>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Process -->
+    <section id="process">
+        <div class="section-header reveal">
+            <span class="section-label">How We Work</span>
+            <h2 class="section-title">From <em>Prompt</em> to Premiere</h2>
+        </div>
+        <div class="process-steps">
+            <div class="process-step reveal">
+                <div class="step-number">01</div>
+                <div class="step-content">
+                    <h3>Concept & Vision</h3>
+                    <p>We start with your idea — a mood, a story, a feeling. Through creative sessions we define the visual language, narrative arc, and emotional tone of your project.</p>
+                </div>
+            </div>
+            <div class="process-step reveal">
+                <div class="step-number">02</div>
+                <div class="step-content">
+                    <h3>Script & Storyboard</h3>
+                    <p>AI-assisted scriptwriting and storyboarding bring your concept to life on paper. Every scene is mapped, every shot is intentional before we generate a single frame.</p>
+                </div>
+            </div>
+            <div class="process-step reveal">
+                <div class="step-number">03</div>
+                <div class="step-content">
+                    <h3>Generation & Curation</h3>
+                    <p>Using state-of-the-art AI tools, we generate hundreds of visual iterations. Our directors curate the best outputs — the human eye decides what makes the cut.</p>
+                </div>
+            </div>
+            <div class="process-step reveal">
+                <div class="step-number">04</div>
+                <div class="step-content">
+                    <h3>Post & Delivery</h3>
+                    <p>Professional editing, color grading, sound design, and final polish. The result is a cinematic piece indistinguishable from traditional production — at unprecedented speed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" style="background: var(--bg-secondary); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+        <div class="section-header reveal">
+            <span class="section-label">About</span>
+            <h2 class="section-title">The <em>House</em></h2>
+        </div>
+        <div class="about-content reveal">
+            <p>
+                <strong>Prompt House</strong> is a production studio built for the AI era.
+                We believe the next generation of cinema won't come from bigger budgets —
+                it will come from <strong>bigger ideas</strong>.
+            </p>
+            <p>
+                Our team combines filmmaking instinct with technical mastery of generative AI.
+                We don't replace human creativity — we amplify it. Every frame we produce passes
+                through a human director's eye before it reaches yours.
+            </p>
+            <p>
+                Based in the future. Available worldwide.
+            </p>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section" id="contact">
+        <h2 class="section-title reveal">Let's Build<br>Something <em>Unreal</em></h2>
+        <p class="reveal">Have a project in mind? We'd love to hear your vision.</p>
+        <a href="mailto:hello@prompthouse.com" class="btn-primary reveal" style="position:relative;">hello@prompthouse.com</a>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-left">
+            <div class="footer-logo">Prompt<span>House</span></div>
+            <div class="footer-copy">&copy; 2026 Prompt House. All rights reserved.</div>
+        </div>
+        <div class="footer-socials">
+            <a href="#">Instagram</a>
+            <a href="#">YouTube</a>
+            <a href="#">X</a>
+            <a href="#">LinkedIn</a>
+        </div>
+    </footer>
+
+    <script>
+        // Cursor glow
+        const glow = document.getElementById('cursorGlow');
+        document.addEventListener('mousemove', (e) => {
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+        });
+
+        // Nav scroll
+        const nav = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            nav.classList.toggle('scrolled', window.scrollY > 50);
+        });
+
+        // Reveal on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
