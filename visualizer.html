@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt House — LightShow</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#000;overflow:hidden;font-family:'Segoe UI',sans-serif;color:#fff;user-select:none}
+        canvas{display:block;position:fixed;top:0;left:0}
+        .drop-zone{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;transition:opacity 1s}
+        .drop-zone.hidden{opacity:0;pointer-events:none}
+        .logo-mark{font-size:10px;font-weight:700;letter-spacing:8px;text-transform:uppercase;color:#333;margin-bottom:60px}
+        .drop-zone h1{font-size:64px;font-weight:100;letter-spacing:16px;text-transform:uppercase;margin-bottom:8px;background:linear-gradient(135deg,#fff,#555);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .drop-zone .tagline{font-size:12px;color:#444;letter-spacing:6px;text-transform:uppercase;margin-bottom:80px}
+        .drop-border{width:480px;height:200px;border:1px solid #1a1a1a;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer;position:relative;transition:all .5s;background:rgba(255,255,255,.01)}
+        .drop-border:hover,.drop-border.dragover{border-color:#333;background:rgba(255,255,255,.02)}
+        .drop-icon{width:48px;height:48px;border-radius:50%;border:1px solid #222;display:flex;align-items:center;justify-content:center}
+        .drop-icon::after{content:'';width:0;height:0;border-style:solid;border-width:8px 0 8px 14px;border-color:transparent transparent transparent #444;margin-left:2px}
+        .drop-border span{font-size:12px;color:#555;letter-spacing:4px;text-transform:uppercase}
+        .drop-border small{font-size:10px;color:#2a2a2a}
+        .drop-border input{position:absolute;inset:0;opacity:0;cursor:pointer}
+        .hud{position:fixed;z-index:50;opacity:0;transition:opacity .8s;pointer-events:none}
+        .hud.visible{opacity:1}
+        .hud-tl{top:28px;left:28px}.hud-br{bottom:28px;right:28px;text-align:right}
+        .hud-title{font-size:12px;font-weight:600;letter-spacing:4px;text-transform:uppercase}
+        .hud-sub{font-size:10px;color:#333;letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+        .controls{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:8px;opacity:0;transition:opacity .8s;pointer-events:none}
+        .controls.visible{opacity:1;pointer-events:auto}
+        .ctrl-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);color:#444;padding:8px 18px;font-size:9px;letter-spacing:3px;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:all .3s;font-family:inherit}
+        .ctrl-btn:hover{background:rgba(255,255,255,.07);color:#888}
+        .progress-track{position:fixed;bottom:0;left:0;right:0;height:2px;z-index:50;background:rgba(255,255,255,.02)}
+        .progress-fill{height:100%;width:0;background:rgba(255,255,255,.15);transition:width .1s linear}
+    </style>
+</head>
+<body>
+<div class="drop-zone" id="dropZone">
+    <div class="logo-mark">Prompt House</div>
+    <h1>LightShow</h1>
+    <p class="tagline">Reactive Audio Visualizer</p>
+    <div class="drop-border" id="dropBorder">
+        <div class="drop-icon"></div>
+        <span>Drop Audio File</span>
+        <small>MP3 / WAV / OGG / FLAC / M4A</small>
+        <input type="file" id="fileInput" accept="audio/*">
+    </div>
+</div>
+<div class="hud hud-tl" id="hudTL"><div class="hud-title" id="hudTitle"></div><div class="hud-sub" id="hudSub"></div></div>
+<div class="hud hud-br" id="hudBR"><div class="hud-sub">Space — Pause &nbsp; C — Colors &nbsp; F — Fullscreen &nbsp; [ ] — Sensitivity</div></div>
+<div class="controls" id="controls">
+    <button class="ctrl-btn" id="btnPlay">Pause</button>
+    <button class="ctrl-btn" id="btnPalette">Colors [C]</button>
+    <button class="ctrl-btn" id="btnFS">Fullscreen</button>
+    <button class="ctrl-btn" id="btnNew">New Track</button>
+</div>
+<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// ============================================================
+//  PALETTES
+// ============================================================
+const PALETTES = [
+    {name:'ETHEREAL', c:['#7B2FBE','#E040FB','#00E5FF','#080115']},
+    {name:'INFERNO',  c:['#FF6D00','#FF1744','#FFD600','#0D0000']},
+    {name:'ARCTIC',   c:['#00B8D4','#B2EBF2','#006064','#000A0C']},
+    {name:'NEON',     c:['#FF006E','#8338EC','#3A86FF','#06000F']},
+    {name:'SOLAR',    c:['#FFA726','#FF7043','#FFEE58','#0A0500']},
+    {name:'VOID',     c:['#FFFFFF','#888888','#CCCCCC','#000000']},
+    {name:'EMERALD',  c:['#00E676','#1DE9B6','#76FF03','#000D05']},
+    {name:'ROSE',     c:['#F50057','#FF80AB','#CE93D8','#0A0006']},
+].map(p => ({name:p.name, c:p.c.map(c=>new THREE.Color(c))}));
+
+let palIdx=0, sensitivity=1.0, isPlaying=false, hideTimer=null;
+const live = [new THREE.Color(),new THREE.Color(),new THREE.Color(),new THREE.Color()];
+function setPal(i){palIdx=i%PALETTES.length; document.getElementById('hudSub').textContent=PALETTES[palIdx].name;}
+function lerpCol(dt){const t=PALETTES[palIdx].c; for(let i=0;i<4;i++) live[i].lerp(t[i],dt*2.5);}
+
+// ============================================================
+//  AUDIO ENGINE — proper Hz-based frequency bands
+// ============================================================
+class Audio {
+    constructor(){
+        this.ctx=null;this.an=null;this.src=null;this.el=null;this.freq=null;this.time=null;
+        this.sr=44100;
+        // Per-band: raw + smooth + peak-hold
+        this.kick=0;this.kickS=0;this.kickPeak=0;
+        this.snare=0;this.snareS=0;this.snarePeak=0;
+        this.bass=0;this.bassS=0;
+        this.mid=0;this.midS=0;
+        this.hiMid=0;this.hiMidS=0;
+        this.hiHat=0;this.hiHatS=0;this.hiHatPeak=0;
+        this.energy=0;this.energyS=0;this.avgE=0;this.eHist=[];
+        this.isBeat=false;this.beatStr=0;this.lastBeat=0;
+        this.isKick=false;this.kickStr=0;this.lastKick=0;this.kickHist=[];this.kickAvg=0;
+        this.isSnare=false;this.snareStr=0;this.lastSnare=0;this.snareHist=[];this.snareAvg=0;
+        this.isHiHat=false;this.hiHatHist=[];this.hiHatAvg=0;
+        this.isDrop=false;this.dropTimer=0;this.quiet=0;
+    }
+    load(file){
+        if(this.el){this.el.pause();this.el.remove();}
+        if(this.src)try{this.src.disconnect();}catch(e){}
+        if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)();
+        this.sr=this.ctx.sampleRate;
+        this.an=this.ctx.createAnalyser();
+        this.an.fftSize=4096;
+        this.an.smoothingTimeConstant=0.75;
+        this.freq=new Uint8Array(this.an.frequencyBinCount);
+        this.time=new Uint8Array(this.an.frequencyBinCount);
+        this.el=new window.Audio();
+        this.el.src=URL.createObjectURL(file);
+        this.src=this.ctx.createMediaElementSource(this.el);
+        this.src.connect(this.an);this.an.connect(this.ctx.destination);
+        this.eHist=[];this.kickHist=[];this.snareHist=[];this.hiHatHist=[];this.quiet=0;
+        this.el.play();return this.el;
+    }
+    // Convert Hz to FFT bin index
+    _bin(hz){return Math.round(hz/(this.sr/this.an.fftSize));}
+    // Average freq data between Hz range
+    _hz(lo,hi){
+        if(!this.freq)return 0;
+        const a=Math.max(0,this._bin(lo)),b=Math.min(this.freq.length-1,this._bin(hi));
+        let s=0;for(let i=a;i<=b;i++)s+=this.freq[i];
+        return(s/(b-a+1))*sensitivity;
+    }
+    update(){
+        if(!this.an||!this.freq)return;
+        this.an.getByteFrequencyData(this.freq);
+        this.an.getByteTimeDomainData(this.time);
+        // Hz-accurate instrument bands
+        this.kick  =this._hz(40,120);   // Kick drum
+        this.snare =this._hz(120,500);  // Snare body + crack
+        this.bass  =this._hz(40,250);   // Bass overall
+        this.mid   =this._hz(500,2000); // Vocals, instruments
+        this.hiMid =this._hz(2000,5000);// Guitar presence, snare crack
+        this.hiHat =this._hz(5000,14000);// Hi-hats, cymbals
+        // Smooth (continuous animation)
+        this.kickS+=(this.kick-this.kickS)*0.12;
+        this.snareS+=(this.snare-this.snareS)*0.14;
+        this.bassS+=(this.bass-this.bassS)*0.08;
+        this.midS+=(this.mid-this.midS)*0.1;
+        this.hiMidS+=(this.hiMid-this.hiMidS)*0.12;
+        this.hiHatS+=(this.hiHat-this.hiHatS)*0.15;
+        // Peak hold (fast attack, slower decay) - for transient punch
+        this.kickPeak=Math.max(this.kick,this.kickPeak*0.85);
+        this.snarePeak=Math.max(this.snare,this.snarePeak*0.82);
+        this.hiHatPeak=Math.max(this.hiHat,this.hiHatPeak*0.8);
+        // Energy
+        this.energy=(this.kick*2+this.snare*1.2+this.bass+this.mid+this.hiMid*0.8+this.hiHat*0.5)/6.5;
+        this.energyS+=(this.energy-this.energyS)*0.06;
+        this.eHist.push(this.energy);if(this.eHist.length>90)this.eHist.shift();
+        this.avgE=this.eHist.reduce((a,b)=>a+b,0)/this.eHist.length;
+        const now=performance.now();
+        // KICK detection (60-150Hz transient)
+        this.kickHist.push(this.kick);if(this.kickHist.length>60)this.kickHist.shift();
+        this.kickAvg=this.kickHist.reduce((a,b)=>a+b,0)/this.kickHist.length;
+        this.isKick=false;
+        if(this.kick>this.kickAvg*1.4&&this.kick>70&&now-this.lastKick>120){
+            this.isKick=true;this.lastKick=now;
+            this.kickStr=Math.min(1,(this.kick-this.kickAvg)/80);
+        }
+        // SNARE detection (200-800Hz transient)
+        this.snareHist.push(this.snare);if(this.snareHist.length>60)this.snareHist.shift();
+        this.snareAvg=this.snareHist.reduce((a,b)=>a+b,0)/this.snareHist.length;
+        this.isSnare=false;
+        if(this.snare>this.snareAvg*1.3&&this.snare>60&&now-this.lastSnare>100){
+            this.isSnare=true;this.lastSnare=now;
+            this.snareStr=Math.min(1,(this.snare-this.snareAvg)/70);
+        }
+        // HI-HAT detection
+        this.hiHatHist.push(this.hiHat);if(this.hiHatHist.length>40)this.hiHatHist.shift();
+        this.hiHatAvg=this.hiHatHist.reduce((a,b)=>a+b,0)/this.hiHatHist.length;
+        this.isHiHat=this.hiHat>this.hiHatAvg*1.3&&this.hiHat>40;
+        // Overall beat
+        this.isBeat=this.isKick||this.isSnare;
+        this.beatStr=Math.max(this.kickStr,this.snareStr);
+        // Drop detection
+        if(this.energy<20)this.quiet++;else this.quiet=Math.max(0,this.quiet-2);
+        this.isDrop=false;
+        if(this.quiet>35&&this.energy>80&&this.energy>this.avgE*2){
+            this.isDrop=true;this.dropTimer=90;this.quiet=0;
+        }
+        if(this.dropTimer>0)this.dropTimer--;
+    }
+    band(i){return this.freq?(this.freq[Math.min(i,this.freq.length-1)]||0)/255:0;}
+}
+
+// ============================================================
+//  GLSL NOISE
+// ============================================================
+const N=`
+vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;}
+vec4 mod289(vec4 x){return x-floor(x*(1./289.))*289.;}
+vec4 permute(vec4 x){return mod289(((x*34.)+1.)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-.85373472095314*r;}
+float snoise(vec3 v){const vec2 C=vec2(1./6.,1./3.);const vec4 D=vec4(0,.5,1,2);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.-g;vec3 i1=min(g,l.zxy);vec3 i2=max(g,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod289(i);vec4 p=permute(permute(permute(i.z+vec4(0,i1.z,i2.z,1))+i.y+vec4(0,i1.y,i2.y,1))+i.x+vec4(0,i1.x,i2.x,1));float n_=.142857142857;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.+1.;vec4 s1=floor(b1)*2.+1.;vec4 sh=-step(h,vec4(0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
+float fbm(vec3 p){float f=0.;f+=.5*snoise(p);p*=2.01;f+=.25*snoise(p);p*=2.02;f+=.125*snoise(p);p*=2.03;f+=.0625*snoise(p);return f;}
+`;
+
+// ============================================================
+//  SHADERS
+// ============================================================
+const bgV=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,1.);}`;
+const bgF=`precision highp float;varying vec2 vUv;
+uniform float uTime,uKick,uSnare,uBass,uMid,uHiHat,uEnergy,uBeatFlash,uDrop;
+uniform vec3 uC0,uC1,uC2,uC3;
+${N}
+void main(){
+    vec2 uv=vUv;vec2 p=uv*2.-1.;float t=uTime*.05;
+    float n1=fbm(vec3(p*1.2+t,t*.2+uKick*.003));
+    float n2=fbm(vec3(p*2.5-t*.4,uBass*.003+t*.3));
+    float n3=snoise(vec3(p*4.+n1*.5,t*.15+uMid*.002));
+    float n=n1*.45+n2*.35+n3*.2;n=n*.5+.5;
+    vec3 col;
+    if(n<.33)col=mix(uC3,uC0,n/.33);
+    else if(n<.66)col=mix(uC0,uC1,(n-.33)/.33);
+    else col=mix(uC1,uC2,(n-.66)/.34);
+    float d=length(p);
+    // Kick pumps the background
+    col+=uC0*uKick*.0008*exp(-d*1.5);
+    // Snare adds brightness burst
+    col+=vec3(uBeatFlash*.08);
+    // Hi-hat adds shimmer at edges
+    col+=uC2*uHiHat*.0003*(1.-exp(-d*3.));
+    // Drop strobe
+    col+=uC1*uDrop*.06;
+    col*=1.-d*.4;
+    col*=.1+uEnergy*.0008;
+    gl_FragColor=vec4(col,1.);
+}`;
+
+// Orb vertex: kick = big displacement, snare = medium, hihat = fine detail
+const orbV=`varying vec3 vN,vP;varying float vD;
+uniform float uTime,uKick,uSnare,uBass,uMid,uHiMid,uHiHat,uBeatFlash;
+${N}
+void main(){
+    vN=normal;vP=position;float d=0.;
+    // Kick drum: BIG slow deformation
+    d+=snoise(position*1.2+uTime*.25)*uKick*.003;
+    // Snare: medium jagged
+    d+=snoise(position*2.5+uTime*.5)*uSnare*.002;
+    // Bass: overall swell
+    d+=snoise(position*1.8+uTime*.15)*uBass*.0015;
+    // Mids: flowing detail
+    d+=snoise(position*4.+uTime*.6)*uMid*.001;
+    // Hi-mid: fine texture
+    d+=snoise(position*7.+uTime*.9)*uHiMid*.0006;
+    // Hi-hat: micro shimmer
+    d+=snoise(position*12.+uTime*1.2)*uHiHat*.0004;
+    // Beat PUNCH
+    d+=uBeatFlash*.12;
+    vD=d;
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(position+normal*d,1.);
+}`;
+
+const orbF=`precision highp float;varying vec3 vN,vP;varying float vD;
+uniform float uTime,uEnergy,uKick;uniform vec3 uC0,uC1,uC2;
+void main(){
+    vec3 V=normalize(cameraPosition-vP);float fr=pow(1.-abs(dot(V,normalize(vN))),2.);
+    float d=clamp(vD*1.5,0.,1.);
+    vec3 col=mix(uC0*.7,uC1,d);col=mix(col,uC2,fr*.5);
+    col+=uC0*fr*.2;
+    col*=.3+uEnergy*.003;
+    float em=.25+fr*.5+d*.25;col*=em;
+    gl_FragColor=vec4(col,.6+fr*.2);
+}`;
+
+const postV=`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+const postF=`precision highp float;uniform sampler2D tDiffuse;uniform float uBeat,uTime;varying vec2 vUv;
+void main(){
+    vec2 uv=vUv;vec2 c=uv-.5;
+    float ab=.0003+uBeat*.002;
+    float r=texture2D(tDiffuse,uv+c*ab).r;float g=texture2D(tDiffuse,uv).g;float b=texture2D(tDiffuse,uv-c*ab).b;
+    vec3 col=vec3(r,g,b);
+    float gr=fract(sin(dot(uv*uTime*80.,vec2(12.9898,78.233)))*43758.5453);
+    col+=(gr-.5)*.015;col*=1.-length(c)*.35;
+    gl_FragColor=vec4(col,1.);
+}`;
+
+// ============================================================
+//  RENDERER — FULL NATIVE RESOLUTION
+// ============================================================
+const audio=new Audio();const clock=new THREE.Clock();const DPR=window.devicePixelRatio||1;
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(DPR);renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+document.body.prepend(renderer.domElement);
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(55,window.innerWidth/window.innerHeight,0.1,500);
+camera.position.set(0,0,8);
+
+const rt=new THREE.WebGLRenderTarget(window.innerWidth*DPR,window.innerHeight*DPR,{type:THREE.HalfFloatType});
+const composer=new EffectComposer(renderer,rt);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth*DPR,window.innerHeight*DPR),0.4,0.3,0.65);
+composer.addPass(bloom);
+const post=new ShaderPass({uniforms:{tDiffuse:{value:null},uBeat:{value:0},uTime:{value:0}},vertexShader:postV,fragmentShader:postF});
+composer.addPass(post);
+
+// ===== BACKGROUND =====
+const bgU={uTime:{value:0},uKick:{value:0},uSnare:{value:0},uBass:{value:0},uMid:{value:0},uHiHat:{value:0},uEnergy:{value:0},uBeatFlash:{value:0},uDrop:{value:0},uC0:{value:new THREE.Color()},uC1:{value:new THREE.Color()},uC2:{value:new THREE.Color()},uC3:{value:new THREE.Color()}};
+const bgScene=new THREE.Scene();const bgCam=new THREE.Camera();
+bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:bgU,vertexShader:bgV,fragmentShader:bgF,depthWrite:false,depthTest:false})));
+
+// ===== ORB — driven by ALL frequency bands =====
+const oU={uTime:{value:0},uKick:{value:0},uSnare:{value:0},uBass:{value:0},uMid:{value:0},uHiMid:{value:0},uHiHat:{value:0},uEnergy:{value:0},uBeatFlash:{value:0},uC0:{value:new THREE.Color()},uC1:{value:new THREE.Color()},uC2:{value:new THREE.Color()}};
+const orb=new THREE.Mesh(new THREE.IcosahedronGeometry(1.4,5),new THREE.ShaderMaterial({uniforms:oU,vertexShader:orbV,fragmentShader:orbF,transparent:true}));
+const orbW=new THREE.Mesh(new THREE.IcosahedronGeometry(1.48,3),new THREE.ShaderMaterial({uniforms:oU,vertexShader:orbV,fragmentShader:orbF,transparent:true,wireframe:true}));
+scene.add(orb);scene.add(orbW);
+
+// ===== CORE — pulses with KICK =====
+const core=new THREE.Mesh(new THREE.SphereGeometry(0.25,32,32),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending}));
+scene.add(core);
+
+// ===== RINGS (8) — each driven by a specific frequency band =====
+// Ring i responds to frequency band at (i*25+10) — spread across spectrum
+const rings=[];
+for(let i=0;i<8;i++){
+    // THICK tube radius so they're actually visible
+    const rg=new THREE.TorusGeometry(1.8+i*0.5,0.015+i*0.005,12,200);
+    const rm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending});
+    const ring=new THREE.Mesh(rg,rm);
+    ring.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,0);
+    ring.userData={ax:new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize(),spd:.15+Math.random()*.3,base:1.8+i*0.5,bandIdx:i};
+    rings.push(ring);scene.add(ring);
+}
+
+// ===== BEAMS (20) — activated by SNARE hits =====
+const beams=[];
+for(let i=0;i<20;i++){
+    const bg=new THREE.CylinderGeometry(0.003,0.06,22,3);
+    const bm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending});
+    const beam=new THREE.Mesh(bg,bm);
+    const a=(i/20)*Math.PI*2;
+    beam.position.set(Math.cos(a)*3,-3,Math.sin(a)*3);
+    beam.rotation.set(-.15+Math.random()*.1,0,(Math.random()-.5)*.4);
+    beam.userData={a,ph:Math.random()*Math.PI*2};
+    beams.push(beam);scene.add(beam);
+}
+
+// ===== FRAGMENTS (100) — explode on KICKS =====
+const frags=[];
+for(let i=0;i<100;i++){
+    const fg=new THREE.OctahedronGeometry(.02+Math.random()*.1,0);
+    const fm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending});
+    const f=new THREE.Mesh(fg,fm);
+    const home=new THREE.Vector3((Math.random()-.5)*2.5,(Math.random()-.5)*2.5,(Math.random()-.5)*2.5);
+    f.position.copy(home);
+    f.userData={home,off:new THREE.Vector3(),rs:new THREE.Vector3((Math.random()-.5)*3,(Math.random()-.5)*3,(Math.random()-.5)*3)};
+    frags.push(f);scene.add(f);
+}
+
+// ===== SPARKLE POINTS — driven by HI-HATS =====
+const sparkCount=2000;
+const spkGeo=new THREE.BufferGeometry();
+const spkPos=new Float32Array(sparkCount*3);
+const spkCol=new Float32Array(sparkCount*3);
+const spkPhase=new Float32Array(sparkCount);
+for(let i=0;i<sparkCount;i++){
+    const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    const r=1.6+Math.random()*1.5;
+    spkPos[i*3]=r*Math.sin(ph)*Math.cos(th);
+    spkPos[i*3+1]=r*Math.sin(ph)*Math.sin(th);
+    spkPos[i*3+2]=r*Math.cos(ph);
+    spkPhase[i]=Math.random()*Math.PI*2;
+    spkCol[i*3]=spkCol[i*3+1]=spkCol[i*3+2]=1;
+}
+spkGeo.setAttribute('position',new THREE.BufferAttribute(spkPos,3));
+spkGeo.setAttribute('color',new THREE.BufferAttribute(spkCol,3));
+const spkMat=new THREE.PointsMaterial({size:.12,vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+const sparkles=new THREE.Points(spkGeo,spkMat);
+scene.add(sparkles);
+
+// ===== GALAXY PARTICLES — 20k, driven by overall energy =====
+const PC=20000;
+const pGeo=new THREE.BufferGeometry();
+const pPos=new Float32Array(PC*3),pCol=new Float32Array(PC*3),pPh=new Float32Array(PC),pDst=new Float32Array(PC);
+for(let i=0;i<PC;i++){
+    const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    const r=i<PC*.6?2+Math.random()*3:4+Math.pow(Math.random(),.5)*10;
+    const flat=i<PC*.6?.25:1;
+    pPos[i*3]=r*Math.sin(ph)*Math.cos(th);pPos[i*3+1]=r*Math.sin(ph)*Math.sin(th)*flat;pPos[i*3+2]=r*Math.cos(ph);
+    pPh[i]=Math.random()*Math.PI*2;pDst[i]=r;
+    pCol[i*3]=pCol[i*3+1]=pCol[i*3+2]=.5;
+}
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+const pMat=new THREE.PointsMaterial({size:.06,vertexColors:true,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+const particles=new THREE.Points(pGeo,pMat);
+scene.add(particles);
+
+// ============================================================
+//  CAMERA
+// ============================================================
+let camA=0,camR=7.5,camY=0;const camShk=new THREE.Vector3();
+function updateCam(dt,t){
+    camA+=(0.06+audio.energyS*.0002)*dt;
+    const tr=7+Math.sin(t*.12)*.4-audio.kickS*.001;
+    camR+=(tr-camR)*.02;
+    camY+=(Math.sin(t*.08)*.5+audio.midS*.001-camY)*.015;
+    // Kick = big shake, Snare = sharp shake
+    if(audio.isKick){const s=audio.kickStr*.08;camShk.set((Math.random()-.5)*s,(Math.random()-.5)*s,(Math.random()-.5)*s*.3);}
+    if(audio.isSnare){const s=audio.snareStr*.05;camShk.x+=(Math.random()-.5)*s;camShk.y+=(Math.random()-.5)*s;}
+    camShk.multiplyScalar(.8);
+    camera.position.set(Math.cos(camA)*camR+camShk.x,camY+camShk.y,Math.sin(camA)*camR+camShk.z);
+    camera.lookAt(0,0,0);
+}
+
+function ss(lo,hi,x){const t=Math.max(0,Math.min(1,(x-lo)/(hi-lo)));return t*t*(3-2*t);}
+
+// ============================================================
+//  ANIMATION
+// ============================================================
+let kickD=0,snareD=0,hiHatD=0,dropD=0,palTimer=0;
+
+function animate(){
+    requestAnimationFrame(animate);
+    const dt=Math.min(clock.getDelta(),.05),t=clock.getElapsedTime();
+    audio.update();
+
+    // Decays — fast attack, visible decay
+    if(audio.isKick)kickD=1;   kickD*=.88;
+    if(audio.isSnare)snareD=1; snareD*=.85;
+    if(audio.isHiHat)hiHatD=Math.min(hiHatD+.3,1); hiHatD*=.9;
+    if(audio.isDrop)dropD=1;   dropD*=.92;
+
+    // Auto palette
+    palTimer+=dt;
+    if(palTimer>45||audio.isDrop){palTimer=0;setPal(palIdx+1);}
+    lerpCol(dt);
+
+    const intensity=ss(15,130,audio.energyS);
+
+    // Push colors everywhere
+    bgU.uC0.value.copy(live[0]);bgU.uC1.value.copy(live[1]);bgU.uC2.value.copy(live[2]);bgU.uC3.value.copy(live[3]);
+    oU.uC0.value.copy(live[0]);oU.uC1.value.copy(live[1]);oU.uC2.value.copy(live[2]);
+
+    // Shader uniforms — ACTUAL frequency values, not just smoothed
+    const setU=(u)=>{u.uTime.value=t;u.uEnergy.value=audio.energyS;};
+    setU(bgU);setU(oU);
+    bgU.uKick.value=audio.kickPeak; bgU.uSnare.value=audio.snarePeak;
+    bgU.uBass.value=audio.bassS; bgU.uMid.value=audio.midS;
+    bgU.uHiHat.value=audio.hiHatPeak; bgU.uBeatFlash.value=Math.max(kickD,snareD);
+    bgU.uDrop.value=dropD;
+    oU.uKick.value=audio.kickPeak; oU.uSnare.value=audio.snarePeak;
+    oU.uBass.value=audio.bassS; oU.uMid.value=audio.midS;
+    oU.uHiMid.value=audio.hiMidS; oU.uHiHat.value=audio.hiHatPeak;
+    oU.uBeatFlash.value=kickD;
+    post.uniforms.uTime.value=t; post.uniforms.uBeat.value=Math.max(kickD,snareD);
+
+    // Bloom reacts to energy
+    bloom.strength=0.3+intensity*.4+kickD*.2;
+
+    updateCam(dt,t);
+
+    // ---- ORB: scale with KICK ----
+    orb.rotation.y+=.07*dt;orb.rotation.x+=.03*dt;
+    orbW.rotation.copy(orb.rotation);
+    const os=1+audio.kickPeak*.001+kickD*.05;
+    orb.scale.setScalar(os);orbW.scale.setScalar(os*1.03);
+    orbW.material.opacity=.08+intensity*.12+snareD*.1;
+
+    // ---- CORE: flash on KICK ----
+    core.material.opacity=kickD*.25+audio.kickPeak*.0008;
+    core.scale.setScalar(.15+audio.kickPeak*.003+kickD*.2);
+    core.material.color.copy(live[0]);
+
+    // ---- RINGS: each band drives a ring ----
+    // Low rings = kick/bass, mid rings = snare/mids, high rings = hihat
+    const bandValues=[audio.kickPeak,audio.kickS,audio.bassS,audio.snareS,audio.midS,audio.hiMidS,audio.hiHatS,audio.hiHatPeak];
+    rings.forEach((ring,i)=>{
+        const bv=bandValues[i]/255;// normalize to 0-1
+        // VISIBLE opacity: 0.05 base + strong band response
+        ring.material.opacity=.03+bv*.5+intensity*.05;
+        ring.material.color.copy(live[i%3]);
+        // Scale expands with its frequency band
+        const scl=(ring.userData.base+bv*1.2)/ring.userData.base;
+        ring.scale.setScalar(scl);
+        // Rotation speed driven by band
+        ring.rotateOnAxis(ring.userData.ax,ring.userData.spd*dt*(.3+bv*3));
+    });
+
+    // ---- BEAMS: SNARE fires them up ----
+    beams.forEach((beam,i)=>{
+        const bv=audio.band(i*10+5);
+        // Snare makes them flash, energy sustains them
+        beam.material.opacity=snareD*bv*.2+ss(.4,1,intensity)*bv*.05;
+        beam.material.color.copy(live[i%3]);
+        beam.rotation.z=Math.sin(t*.5+beam.userData.ph)*.3+snareD*.15;
+    });
+
+    // ---- FRAGMENTS: KICK explodes them ----
+    frags.forEach((f,i)=>{
+        const home=f.userData.home;
+        if(audio.isKick){
+            const dir=home.clone().normalize();
+            f.userData.off.add(dir.multiplyScalar(audio.kickStr*2.5));
+        }
+        f.userData.off.multiplyScalar(.88);
+        f.position.set(home.x+f.userData.off.x,home.y+f.userData.off.y,home.z+f.userData.off.z);
+        f.rotation.x+=f.userData.rs.x*dt*(1+audio.energyS*.004);
+        f.rotation.y+=f.userData.rs.y*dt;
+        const bv=audio.band(i*3);
+        // Visible during any real energy
+        f.material.opacity=ss(.15,1,intensity)*(0.05+bv*.4)+kickD*.15;
+        f.material.color.copy(live[i%3]);
+        f.scale.setScalar(1+bv*.4+kickD*.3);
+    });
+
+    // ---- SPARKLES: HI-HAT drives them ----
+    const sp=spkGeo.attributes.position.array;
+    const sc=spkGeo.attributes.color.array;
+    for(let i=0;i<sparkCount;i++){
+        const i3=i*3;
+        // Jitter on hi-hat hits
+        if(audio.isHiHat&&Math.random()<.3){
+            sp[i3]+=(Math.random()-.5)*.05;
+            sp[i3+1]+=(Math.random()-.5)*.05;
+            sp[i3+2]+=(Math.random()-.5)*.05;
+        }
+        // Gentle orbit
+        const x=sp[i3],z=sp[i3+2];
+        const a=.15*dt;const ca=Math.cos(a),sa=Math.sin(a);
+        sp[i3]=x*ca-z*sa;sp[i3+2]=x*sa+z*ca;
+        // Color
+        const tc=live[i%3];
+        sc[i3]+=(tc.r-sc[i3])*.08;sc[i3+1]+=(tc.g-sc[i3+1])*.08;sc[i3+2]+=(tc.b-sc[i3+2])*.08;
+    }
+    spkGeo.attributes.position.needsUpdate=true;
+    spkGeo.attributes.color.needsUpdate=true;
+    // Sparkle opacity = hi-hat driven
+    spkMat.opacity=audio.hiHatPeak/255*.7+hiHatD*.15;
+    spkMat.size=.06+audio.hiHatPeak/255*.12;
+
+    // ---- GALAXY PARTICLES ----
+    const pos=pGeo.attributes.position.array;
+    const col=pGeo.attributes.color.array;
+    for(let i=0;i<PC;i++){
+        const i3=i*3;let x=pos[i3],y=pos[i3+1],z=pos[i3+2];
+        const dist=Math.sqrt(x*x+y*y+z*z)||.01;
+        const a=(.2/(dist*.4+.5))*dt*(1+audio.energyS*.002);
+        const ca=Math.cos(a),sa=Math.sin(a);
+        const nx=x*ca-z*sa,nz=x*sa+z*ca;x=nx;z=nz;
+        y+=Math.sin(t*.3+pPh[i])*.001;
+        const push=1+audio.kickS*.00002;x*=push;y*=push;z*=push;
+        if(audio.isKick&&Math.random()<.05){const bs=audio.kickStr*.03;x+=(Math.random()-.5)*bs;y+=(Math.random()-.5)*bs;z+=(Math.random()-.5)*bs;}
+        if(audio.isSnare&&Math.random()<.03){const bs=audio.snareStr*.02;x+=(Math.random()-.5)*bs;y+=(Math.random()-.5)*bs;z+=(Math.random()-.5)*bs;}
+        const td=pDst[i],fac=1-(dist-td)*.004;
+        x*=fac;y*=fac;z*=fac;
+        pos[i3]=x;pos[i3+1]=y;pos[i3+2]=z;
+        const fi=Math.floor((i/PC)*(audio.freq?audio.freq.length*.4:100));
+        const fv=audio.freq?(audio.freq[fi]||0)/255:0;
+        const tc=live[Math.min(Math.floor(fv*2.99),2)];
+        col[i3]+=(tc.r-col[i3])*.05;col[i3+1]+=(tc.g-col[i3+1])*.05;col[i3+2]+=(tc.b-col[i3+2])*.05;
+    }
+    pGeo.attributes.position.needsUpdate=true;
+    pGeo.attributes.color.needsUpdate=true;
+    pMat.size=.04+intensity*.05;pMat.opacity=.4+intensity*.5;
+
+    // ---- RENDER ----
+    renderer.autoClear=false;renderer.clear();
+    renderer.render(bgScene,bgCam);
+    composer.render();
+
+    if(audio.el&&audio.el.duration)progressFill.style.width=(audio.el.currentTime/audio.el.duration*100)+'%';
+}
+animate();
+
+// ============================================================
+//  UI
+// ============================================================
+document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])go(e.target.files[0]);});
+const db=document.getElementById('dropBorder');
+db.addEventListener('dragover',e=>{e.preventDefault();db.classList.add('dragover');});
+db.addEventListener('dragleave',()=>db.classList.remove('dragover'));
+db.addEventListener('drop',e=>{e.preventDefault();db.classList.remove('dragover');if(e.dataTransfer.files[0])go(e.dataTransfer.files[0]);});
+document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>e.preventDefault());
+function go(file){
+    const el=audio.load(file);isPlaying=true;
+    document.getElementById('hudTitle').textContent=file.name.replace(/\.[^/.]+$/,'');
+    setPal(0);
+    document.getElementById('dropZone').classList.add('hidden');
+    document.querySelectorAll('.hud').forEach(h=>h.classList.add('visible'));
+    document.getElementById('controls').classList.add('visible');
+    el.addEventListener('ended',()=>{isPlaying=false;document.getElementById('btnPlay').textContent='Play';});
+    rUI();
+}
+function rUI(){
+    document.querySelectorAll('.hud,.controls').forEach(el=>el.style.opacity='');
+    clearTimeout(hideTimer);
+    hideTimer=setTimeout(()=>{document.querySelectorAll('.hud,.controls').forEach(el=>{if(el.classList.contains('visible'))el.style.opacity='0';});},5000);
+}
+document.addEventListener('mousemove',rUI);
+document.addEventListener('keydown',e=>{
+    switch(e.key.toLowerCase()){
+        case' ':case'k':e.preventDefault();tp();break;
+        case'c':setPal(palIdx+1);break;
+        case'f':if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();break;
+        case'[':sensitivity=Math.max(.3,sensitivity-.1);break;
+        case']':sensitivity=Math.min(3,sensitivity+.1);break;
+    }
+});
+document.getElementById('btnPlay').addEventListener('click',tp);
+document.getElementById('btnPalette').addEventListener('click',()=>setPal(palIdx+1));
+document.getElementById('btnFS').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();});
+document.getElementById('btnNew').addEventListener('click',()=>{if(audio.el)audio.el.pause();document.getElementById('dropZone').classList.remove('hidden');document.querySelectorAll('.hud').forEach(h=>h.classList.remove('visible'));document.getElementById('controls').classList.remove('visible');});
+function tp(){if(!audio.el)return;if(isPlaying){audio.el.pause();document.getElementById('btnPlay').textContent='Play';}else{audio.el.play();document.getElementById('btnPlay').textContent='Pause';}isPlaying=!isPlaying;}
+window.addEventListener('resize',()=>{const w=window.innerWidth,h=window.innerHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);const pw=w*DPR,ph=h*DPR;composer.setSize(pw,ph);bloom.resolution.set(pw,ph);});
+setPal(0);
+</script>
+</body>
+</html>
